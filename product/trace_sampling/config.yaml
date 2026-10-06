@@ -1,0 +1,4 @@
+trace_sampling:
+  enabled: true
+  sample_ratio_percent: 5
+  propagate_baggage: false
