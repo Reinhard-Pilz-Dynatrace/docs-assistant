@@ -26,6 +26,21 @@ func TestParseConfigRejectsInvalidScanInterval(t *testing.T) {
 }
 
 func TestCheckedInConfigUsesSixtySecondInterval(t *testing.T) {
+	config := readCheckedInConfig(t)
+	if got := config.ProcessMonitoring.ScanIntervalSeconds; got != 60 {
+		t.Fatalf("checked-in scan interval = %d, want 60", got)
+	}
+}
+
+func TestCheckedInConfigIncludesContainerProcesses(t *testing.T) {
+	config := readCheckedInConfig(t)
+	if !config.ProcessMonitoring.IncludeContainerProcesses {
+		t.Fatal("container process monitoring should be enabled in the demo configuration")
+	}
+}
+
+func readCheckedInConfig(t *testing.T) ProductConfig {
+	t.Helper()
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {
 		t.Fatalf("read checked-in config: %v", err)
@@ -34,9 +49,7 @@ func TestCheckedInConfigUsesSixtySecondInterval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseConfig() error = %v", err)
 	}
-	if got := config.ProcessMonitoring.ScanIntervalSeconds; got != 60 {
-		t.Fatalf("checked-in scan interval = %d, want 60", got)
-	}
+	return config
 }
 
 func TestShouldMonitorProcess(t *testing.T) {
