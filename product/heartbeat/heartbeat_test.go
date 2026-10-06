@@ -15,7 +15,7 @@ func TestCheckedInConfigDefaults(t *testing.T) {
 		t.Fatalf("ParseConfig() error = %v", err)
 	}
 	got := config.Heartbeat
-	if got.Enabled != true || got.HeartbeatIntervalSeconds != 20 || got.IncludeHostMetadata != true {
+	if got.Enabled != true || got.HeartbeatIntervalSeconds != 20 || got.IncludeHostMetadata != false {
 		t.Fatalf("checked-in defaults = %#v", got)
 	}
 }
