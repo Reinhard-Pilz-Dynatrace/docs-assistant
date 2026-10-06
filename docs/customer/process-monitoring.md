@@ -2,7 +2,7 @@
 
 ## Overview
 
-Process monitoring records host processes when the feature is enabled. By default it scans every 60 seconds, which suits hosts where you prefer a less frequent scan cadence.
+Process monitoring records host processes when the feature is enabled. The default scan cadence is one scan every 60 seconds. This suits platform engineers who want fewer process scans on busy hosts while still seeing running processes.
 
 ## Configuration
 
@@ -10,18 +10,17 @@ Configure process monitoring in `product/process_monitoring/config.yaml`.
 
 - `process_monitoring.enabled`: turns process monitoring on or off.
 - `process_monitoring.scan_interval_seconds`: the number of seconds between process scans. The value must be greater than zero.
-- `process_monitoring.include_container_processes`: set to `true` to include container processes.
+- `process_monitoring.include_container_processes`: when set to `true`, container processes are included in monitoring.
 
 ## Defaults
 
-Process monitoring is enabled by default. The default scan interval is 60 seconds.
-
-The default scan interval was previously 30 seconds. The change affects the default cadence only and does not change whether process monitoring is enabled. New installations use the 60-second default. To scan more often, set `scan_interval_seconds` to a lower value.
+Process monitoring is enabled by default. The default scan interval is 60 seconds. New installations use this default.
 
 ## Limitations
 
-- Container processes are not included by default.
-- The longer default interval changes scan cadence only. No measured CPU or performance improvement is claimed.
+Container processes are not included by default.
+
+The 60-second default changes the scan cadence only. It does not change whether process monitoring is enabled. No CPU or performance improvement is claimed.
 
 ## Troubleshooting
 
