@@ -20,7 +20,7 @@ func readCheckedInConfig(t *testing.T) ProductConfig {
 
 func TestCheckedInConfigDefaults(t *testing.T) {
 	config := readCheckedInConfig(t).LogCollection
-	if !config.Enabled || config.MaxFileSizeMB != 100 || config.IncludeRotatedFiles {
+	if !config.Enabled || config.MaxFileSizeMB != 200 || config.IncludeRotatedFiles {
 		t.Fatalf("checked-in defaults = %#v", config)
 	}
 }
