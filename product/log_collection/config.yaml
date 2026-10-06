@@ -1,0 +1,4 @@
+log_collection:
+  enabled: true
+  max_file_size_mb: 100
+  include_rotated_files: false

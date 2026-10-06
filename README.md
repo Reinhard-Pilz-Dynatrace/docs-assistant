@@ -71,6 +71,11 @@ In repository settings, add the Actions secret `ANTHROPIC_AUTH_TOKEN` (or `ANTHR
 4. For the successful scenario, add `include_container_processes` and its tested behavior. Claude should propose separate customer and developer docs, validate both templates, and open a docs PR.
 5. For the block scenario, make the VI claim a default or capability that contradicts merged product source. Claude should cite both sides, move the VI to `vi:needs-clarification`, and create no docs PR.
 6. For the documentation-regression scenario, change `scan_interval_seconds` from 30 to 60 while existing docs still say 30. Claude should propose correcting both docs and keep the source/doc conflict visible in the PR report.
+7. For the no-impact scenario, change only `product/text_util`, an unmapped internal helper. No mapped concept changes, so Claude should submit `no_docs_impact` and create no docs PR.
+
+### Fixture features
+
+`mappings/docs-map.yaml` maps each feature's schema concepts to its `source` files (read as evidence) and its customer and internal docs. Three independent features exist so VIs can be developed without merge conflicts: `process_monitoring`, `log_collection` (`max_file_size_mb`, `include_rotated_files`), and `network_monitoring` (`sample_rate_percent`, `capture_dns_queries`). `product/text_util` is intentionally unmapped. The code is fictional.
 7. Review and merge the docs PR. Its merge marks the VI `vi:done`; docs are never auto-merged. Closing a VI before that gate completes causes the workflow to reopen it with an explanation.
 
 The Action summary shows the actual Claude model, decision, affected docs and audiences, conflicts, missing information, context-size estimate, and tool calls. The uploaded `doc-contract-*.json` and `tool-trace-*.json` artifacts make the agent's evidence path inspectable.

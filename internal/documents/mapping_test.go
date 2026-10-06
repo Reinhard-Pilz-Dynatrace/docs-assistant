@@ -9,6 +9,8 @@ func TestLoadMappingAndSelectAudienceDocs(t *testing.T) {
 	mapping, err := LoadMapping(strings.NewReader(`process_monitoring:
   schema:
     - scan_interval_seconds
+  source:
+    - product/process_monitoring/config.yaml
   docs:
     - path: docs/customer/process-monitoring.md
       audience: customer
@@ -31,5 +33,21 @@ func TestLoadMappingAndSelectAudienceDocs(t *testing.T) {
 	}
 	if got := mapping.TargetsForConcepts([]string{"unmapped_internal_refactor"}); len(got) != 0 {
 		t.Fatalf("unmapped change selected %d docs, want none", len(got))
+	}
+}
+
+func TestSourceFilesAndFeaturesForConcepts(t *testing.T) {
+	mapping := Mapping{Features: map[string]FeatureMapping{
+		"a": {Schema: []string{"one"}, Source: []string{"a/config.yaml", "a/a.go"}},
+		"b": {Schema: []string{"two"}, Source: []string{"b/config.yaml"}},
+	}}
+	if got := mapping.FeaturesForConcepts([]string{"two"}); len(got) != 1 || got[0] != "b" {
+		t.Fatalf("FeaturesForConcepts() = %#v", got)
+	}
+	if got := mapping.SourceFilesForConcepts([]string{"one"}); len(got) != 2 {
+		t.Fatalf("SourceFilesForConcepts() = %#v", got)
+	}
+	if got := mapping.SourceFilesForConcepts([]string{"unrelated"}); len(got) != 0 {
+		t.Fatalf("SourceFilesForConcepts() = %#v", got)
 	}
 }
