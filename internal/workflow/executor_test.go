@@ -191,6 +191,13 @@ func TestDocsPRBodyIsCompactAndReadable(t *testing.T) {
 	}
 }
 
+func TestEvidenceLabelsUseChangedFileNameForDiffs(t *testing.T) {
+	labels := evidenceLabels([]documents.Evidence{{ID: "DIFF-PRODUCT-NETWORK-MONITORING-CONFIG-YAML", Type: "CODE", Source: "https://github.com/o/r/pull/20/files", Detail: "product/network_monitoring/config.yaml\n@@ -1 +1 @@"}})
+	if got := labels["DIFF-PRODUCT-NETWORK-MONITORING-CONFIG-YAML"]; got != "CODE config.yaml (diff)" {
+		t.Fatalf("label = %q", got)
+	}
+}
+
 func TestBlockingConflictBecomesWarningAndClipIsBounded(t *testing.T) {
 	contract := sampleContract()
 	contract.Conflicts = []documents.Conflict{{Description: "VI says 50\nMB", BlocksResolution: true}}
