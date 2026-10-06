@@ -25,7 +25,9 @@ type ToolExecutor interface {
 }
 
 type Client struct {
-	APIKey       string
+	APIKey       string // sent as x-api-key
+	AuthToken    string // sent as Authorization: Bearer (gateway credential)
+	BaseURL      string // optional gateway base URL, e.g. https://gateway.example.com
 	Model        string
 	Endpoint     string
 	HTTPClient   *http.Client
@@ -88,8 +90,8 @@ type apiError struct {
 }
 
 func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, executor ToolExecutor) (RunResult, error) {
-	if client.APIKey == "" {
-		return RunResult{}, fmt.Errorf("ANTHROPIC_API_KEY is required for live agent runs")
+	if client.APIKey == "" && client.AuthToken == "" {
+		return RunResult{}, fmt.Errorf("ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN is required for live agent runs")
 	}
 	if client.Model == "" {
 		return RunResult{}, fmt.Errorf("ANTHROPIC_MODEL is required for live agent runs")
@@ -101,6 +103,9 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 	endpoint := client.Endpoint
 	if endpoint == "" {
 		endpoint = defaultEndpoint
+		if client.BaseURL != "" {
+			endpoint = strings.TrimRight(client.BaseURL, "/") + "/v1/messages"
+		}
 	}
 	httpClient := client.HTTPClient
 	if httpClient == nil {
@@ -134,7 +139,11 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 		if err != nil {
 			return result, fmt.Errorf("create Claude request: %w", err)
 		}
-		request.Header.Set("x-api-key", client.APIKey)
+		if client.AuthToken != "" {
+			request.Header.Set("Authorization", "Bearer "+client.AuthToken)
+		} else {
+			request.Header.Set("x-api-key", client.APIKey)
+		}
 		request.Header.Set("anthropic-version", "2023-06-01")
 		request.Header.Set("content-type", "application/json")
 
