@@ -152,11 +152,63 @@ func TestSubmitResolutionRejectsNoImpactWhenDocsWereSelected(t *testing.T) {
 	}
 }
 
-func TestDocsPRBodyShowsMappingReason(t *testing.T) {
-	contract := documents.Contract{AffectedDocuments: []documents.DocumentProposal{{DocumentTarget: documents.DocumentTarget{Path: "docs/a.md", Audience: "customer", Type: "product-guide", Reason: "settings-schema mapping"}}}}
-	body := docsPRBody(contract, gh.PullRequest{Number: 4})
-	if !strings.Contains(body, "`docs/a.md` (customer / product-guide): settings-schema mapping") {
-		t.Fatalf("body = %s", body)
+func sampleContract() documents.Contract {
+	return documents.Contract{
+		Provider: documents.Provider{Name: "Anthropic Claude", Model: "test-model"},
+		WorkItem: documents.WorkItem{Number: 4, Title: "VI: Faster | scans", UserGoal: "goal", ExpectedOutcome: "60 second default"},
+		Change:   documents.Change{Settings: []documents.SettingChange{{Name: "scan_interval_seconds", Old: "30", New: "60"}}},
+		Evidence: []documents.Evidence{
+			{ID: "VI-4", Type: "VI", Source: "https://example/4", Detail: "d"},
+			{ID: "SRC-PRODUCT-CONFIG-YAML", Type: "SCHEMA", Source: "product/process_monitoring/config.yaml@abc", Detail: "d"},
+		},
+		Claims:             []documents.Claim{{Text: "Default is 60 seconds.", Audience: "customer", EvidenceIDs: []string{"SRC-PRODUCT-CONFIG-YAML", "VI-4"}}},
+		AffectedDocuments:  []documents.DocumentProposal{{DocumentTarget: documents.DocumentTarget{Path: "docs/a.md", Audience: "customer", Type: "product-guide", Reason: "settings-schema mapping"}}},
+		Conflicts:          []documents.Conflict{{Description: "old docs say 30", EvidenceIDs: []string{"SRC-PRODUCT-CONFIG-YAML"}}},
+		MissingInformation: []string{"Troubleshooting is not established."},
+	}
+}
+
+func TestDocsPRBodyIsCompactAndReadable(t *testing.T) {
+	measurement := ContextMeasurement{RepositoryFiles: 50, SelectedFiles: 7, ReductionPct: 86}
+	body := docsPRBody(sampleContract(), gh.PullRequest{Number: 4}, measurement, "gateway.example")
+	for _, want := range []string{
+		"## Documentation update: VI #4 — Faster | scans",
+		"Resolved by Claude (`test-model`) via `gateway.example`",
+		"| `docs/a.md` | customer | settings-schema mapping |",
+		"| `scan_interval_seconds` | 30 | 60 |",
+		"- ? Troubleshooting is not established. `[MISSING]`",
+		"7 of 50 repository files read",
+		"<summary>Evidence (1 claims)</summary>\n\n",
+		"- Default is 60 seconds. — `SCHEMA config.yaml`, `VI #4`",
+		"<summary>Conflicts and notes</summary>",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body is missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "SRC-PRODUCT") {
+		t.Errorf("body leaks raw evidence IDs:\n%s", body)
+	}
+}
+
+func TestBlockingConflictBecomesWarningAndClipIsBounded(t *testing.T) {
+	contract := sampleContract()
+	contract.Conflicts = []documents.Conflict{{Description: "VI says 50\nMB", BlocksResolution: true}}
+	if body := docsPRBody(contract, gh.PullRequest{Number: 4}, ContextMeasurement{}, ""); !strings.Contains(body, "> [!WARNING]\n> **Source conflict:** VI says 50 MB") {
+		t.Fatalf("blocking conflict not rendered as warning:\n%s", body)
+	}
+	if got := clip(strings.Repeat("x", maxReportChars+10)); len(got) > maxReportChars+200 {
+		t.Fatalf("clip() length = %d", len(got))
+	}
+}
+
+func TestResolutionCommentShowsConflictTableAndQuestion(t *testing.T) {
+	contract := sampleContract()
+	comment := resolutionComment(contract)
+	for _, want := range []string{"## Needs clarification", "| Source conflict | Evidence |", "| old docs say 30 | `SCHEMA config.yaml` |", "### Question for a human", "re-apply `vi:ready-for-docs`"} {
+		if !strings.Contains(comment, want) {
+			t.Errorf("comment is missing %q:\n%s", want, comment)
+		}
 	}
 }
 
