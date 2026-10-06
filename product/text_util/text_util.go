@@ -9,5 +9,6 @@ func Truncate(text string, limit int) string {
 	if limit < 0 || len(text) <= limit {
 		return text
 	}
-	return strings.TrimRight(text[:limit], " ") + "..."
+	cut := strings.TrimRight(text[:limit], " ")
+	return cut + "..."
 }
