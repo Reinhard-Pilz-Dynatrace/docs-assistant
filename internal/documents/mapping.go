@@ -14,6 +14,7 @@ type Mapping struct {
 
 type FeatureMapping struct {
 	Schema []string         `yaml:"schema"`
+	Source []string         `yaml:"source"`
 	Docs   []DocumentTarget `yaml:"docs"`
 }
 
@@ -34,8 +35,8 @@ func LoadMapping(reader io.Reader) (Mapping, error) {
 		return Mapping{}, fmt.Errorf("docs mapping contains no features")
 	}
 	for feature, mapping := range features {
-		if feature == "" || len(mapping.Schema) == 0 || len(mapping.Docs) == 0 {
-			return Mapping{}, fmt.Errorf("feature %q must define schema concepts and docs", feature)
+		if feature == "" || len(mapping.Schema) == 0 || len(mapping.Source) == 0 || len(mapping.Docs) == 0 {
+			return Mapping{}, fmt.Errorf("feature %q must define schema concepts, source files, and docs", feature)
 		}
 		for _, doc := range mapping.Docs {
 			if doc.Path == "" || doc.Audience == "" || doc.Type == "" || doc.Template == "" {
@@ -46,33 +47,31 @@ func LoadMapping(reader io.Reader) (Mapping, error) {
 	return Mapping{Features: features}, nil
 }
 
-func (mapping Mapping) TargetsForConcepts(changedConcepts []string) []DocumentTarget {
+// FeaturesForConcepts returns the sorted names of features whose schema
+// contains at least one of the changed concepts.
+func (mapping Mapping) FeaturesForConcepts(changedConcepts []string) []string {
 	changed := make(map[string]struct{}, len(changedConcepts))
 	for _, concept := range changedConcepts {
 		changed[concept] = struct{}{}
 	}
-
-	features := make([]string, 0, len(mapping.Features))
-	for feature := range mapping.Features {
-		features = append(features, feature)
-	}
-	sort.Strings(features)
-
-	seen := make(map[string]struct{})
-	var targets []DocumentTarget
-	for _, feature := range features {
-		featureMapping := mapping.Features[feature]
-		matched := false
+	var features []string
+	for feature, featureMapping := range mapping.Features {
 		for _, concept := range featureMapping.Schema {
 			if _, ok := changed[concept]; ok {
-				matched = true
+				features = append(features, feature)
 				break
 			}
 		}
-		if !matched {
-			continue
-		}
-		for _, target := range featureMapping.Docs {
+	}
+	sort.Strings(features)
+	return features
+}
+
+func (mapping Mapping) TargetsForConcepts(changedConcepts []string) []DocumentTarget {
+	seen := make(map[string]struct{})
+	var targets []DocumentTarget
+	for _, feature := range mapping.FeaturesForConcepts(changedConcepts) {
+		for _, target := range mapping.Features[feature].Docs {
 			if _, ok := seen[target.Path]; ok {
 				continue
 			}
@@ -82,6 +81,41 @@ func (mapping Mapping) TargetsForConcepts(changedConcepts []string) []DocumentTa
 		}
 	}
 	return targets
+}
+
+// SourceFilesForConcepts returns the de-duplicated source files of the
+// features matched by the changed concepts.
+func (mapping Mapping) SourceFilesForConcepts(changedConcepts []string) []string {
+	seen := make(map[string]struct{})
+	var files []string
+	for _, feature := range mapping.FeaturesForConcepts(changedConcepts) {
+		for _, path := range mapping.Features[feature].Source {
+			if _, ok := seen[path]; !ok {
+				seen[path] = struct{}{}
+				files = append(files, path)
+			}
+		}
+	}
+	return files
+}
+
+// IsSourceFile reports whether any feature lists path as source evidence.
+func (mapping Mapping) IsSourceFile(path string) bool {
+	for _, feature := range mapping.Features {
+		for _, source := range feature.Source {
+			if source == path {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsFeatureName reports whether name is a feature key, which doubles as the
+// root key of its config file and is therefore not a changeable setting.
+func (mapping Mapping) IsFeatureName(name string) bool {
+	_, ok := mapping.Features[name]
+	return ok
 }
 
 func (mapping Mapping) IsAllowedTarget(target DocumentTarget) bool {

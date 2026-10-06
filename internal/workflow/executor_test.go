@@ -16,7 +16,7 @@ import (
 
 func TestChangedConceptsSelectsSettingsButNotUnrelatedRefactor(t *testing.T) {
 	mapping := documents.Mapping{Features: map[string]documents.FeatureMapping{
-		"process_monitoring": {Schema: []string{"process_monitoring", "include_container_processes", "scan_interval_seconds"}},
+		"process_monitoring": {Schema: []string{"process_monitoring", "include_container_processes", "scan_interval_seconds"}, Source: []string{"product/process_monitoring/config.yaml", "product/process_monitoring/process_monitor.go"}},
 	}}
 	files := []gh.PullRequestFile{
 		{Filename: "product/process_monitoring/config.yaml", Patch: "@@ -1,2 +1,3 @@ process_monitoring:\n   enabled: true\n+  include_container_processes: true\n"},
@@ -33,11 +33,11 @@ func TestDiffContextBoundsMappedPatchesAndOmitsUnrelatedPatches(t *testing.T) {
 		{Filename: "product/process_monitoring/config.yaml", Status: "modified", Patch: strings.Repeat("+ include_container_processes\n", 300)},
 		{Filename: "docs/README.md", Status: "modified", Patch: "+ unrelated content\n"},
 	}
-	got := diffContext(files, []string{"include_container_processes"})
+	got := diffContext(files, []string{"include_container_processes"}, testMapping())
 	if len(got) != 2 || len(got[0].Patch) > 4020 || got[1].Patch != "" {
 		t.Fatalf("diffContext() = %#v", got)
 	}
-	noImpact := diffContext(files, nil)
+	noImpact := diffContext(files, nil, testMapping())
 	if noImpact[0].Patch != "" || noImpact[1].Patch != "" {
 		t.Fatalf("no-impact context included patches: %#v", noImpact)
 	}
@@ -92,7 +92,7 @@ func TestReadDocumentationContextLoadsOnlyMappedAudienceFiles(t *testing.T) {
 
 	target := documents.DocumentTarget{Path: "docs/customer/process-monitoring.md", Audience: "customer", Type: "product-guide", Template: "docs/templates/customer.md"}
 	mapping := documents.Mapping{Features: map[string]documents.FeatureMapping{
-		"process_monitoring": {Schema: []string{"scan_interval_seconds"}, Docs: []documents.DocumentTarget{target}},
+		"process_monitoring": {Schema: []string{"scan_interval_seconds"}, Source: []string{"product/process_monitoring/config.yaml", "product/process_monitoring/process_monitor.go", "product/process_monitoring/process_monitor_test.go"}, Docs: []documents.DocumentTarget{target}},
 	}}
 	client := &gh.Client{Owner: "acme", Repository: "demo", Token: "test", APIBase: server.URL, HTTPClient: server.Client()}
 	executor := NewExecutor(client, mapping, 7, t.TempDir(), "test-model")
@@ -157,5 +157,26 @@ func TestDocsPRBodyShowsMappingReason(t *testing.T) {
 	body := docsPRBody(contract, gh.PullRequest{Number: 4})
 	if !strings.Contains(body, "`docs/a.md` (customer / product-guide): settings-schema mapping") {
 		t.Fatalf("body = %s", body)
+	}
+}
+
+func testMapping() documents.Mapping {
+	return documents.Mapping{Features: map[string]documents.FeatureMapping{
+		"process_monitoring": {Schema: []string{"process_monitoring", "include_container_processes"}, Source: []string{"product/process_monitoring/config.yaml"}},
+	}}
+}
+
+func TestChangedConceptsSeparatesFeatures(t *testing.T) {
+	mapping := documents.Mapping{Features: map[string]documents.FeatureMapping{
+		"log_collection":     {Schema: []string{"log_collection", "max_file_size_mb"}, Source: []string{"product/log_collection/config.yaml"}},
+		"network_monitoring": {Schema: []string{"network_monitoring", "sample_rate_percent"}, Source: []string{"product/network_monitoring/config.yaml"}},
+	}}
+	files := []gh.PullRequestFile{{Filename: "product/log_collection/config.yaml", Patch: "@@ -1,3 +1,3 @@ log_collection:\n-  max_file_size_mb: 100\n+  max_file_size_mb: 50\n"}}
+	got := changedConcepts(files, mapping)
+	if len(got) != 1 || got[0] != "max_file_size_mb" {
+		t.Fatalf("changedConcepts() = %#v", got)
+	}
+	if features := mapping.FeaturesForConcepts(got); len(features) != 1 || features[0] != "log_collection" {
+		t.Fatalf("FeaturesForConcepts() = %#v", features)
 	}
 }

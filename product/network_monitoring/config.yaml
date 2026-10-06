@@ -1,0 +1,4 @@
+network_monitoring:
+  enabled: false
+  sample_rate_percent: 10
+  capture_dns_queries: false

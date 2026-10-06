@@ -151,7 +151,7 @@ func (executor *Executor) inspectVI(ctx context.Context) (inspection, error) {
 	executor.Pull = pull
 	executor.PullFiles = files
 	executor.Changed = changedConcepts(files, executor.Mapping)
-	toolFiles := diffContext(files, executor.Changed)
+	toolFiles := diffContext(files, executor.Changed, executor.Mapping)
 	executor.addEvidence(documents.Evidence{
 		ID:     fmt.Sprintf("VI-%d", issue.Number),
 		Type:   "VI",
@@ -196,12 +196,7 @@ func (executor *Executor) readDocumentationContext(ctx context.Context) (documen
 	}
 
 	selectedPaths := make(map[string]struct{})
-	sourcePaths := []string{
-		"product/process_monitoring/config.yaml",
-		"product/process_monitoring/process_monitor.go",
-		"product/process_monitoring/process_monitor_test.go",
-	}
-	for _, path := range sourcePaths {
+	for _, path := range executor.Mapping.SourceFilesForConcepts(executor.Changed) {
 		content, _, err := executor.GitHub.GetFile(ctx, path, executor.Pull.MergeCommitSHA)
 		if err != nil {
 			return documentContext{}, fmt.Errorf("read source evidence %s: %w", path, err)
@@ -259,7 +254,7 @@ func (executor *Executor) submitResolution(ctx context.Context, input json.RawMe
 	contract := payload.Contract
 	contract.Provider = documents.Provider{Name: "Anthropic Claude", Model: executor.Model}
 	contract.WorkItem = issueWorkItem(executor.Issue)
-	contract.Change.Feature = "process_monitoring"
+	contract.Change.Feature = strings.Join(executor.Mapping.FeaturesForConcepts(executor.Changed), ", ")
 	contract.Change.DocumentationAudiences = audiences(executor.Targets)
 	contract.Change.CustomerVisible = containsAudience(executor.Targets, "customer")
 	contract.Evidence = executor.canonicalEvidence(contract.Evidence)
@@ -393,9 +388,9 @@ func changedConcepts(files []gh.PullRequestFile, mapping documents.Mapping) []st
 	found := make(map[string]struct{})
 	for _, file := range files {
 		patch := file.Patch
-		if strings.HasSuffix(file.Filename, "/config.yaml") && strings.Contains(file.Filename, "process_monitoring") {
+		if strings.HasSuffix(file.Filename, ".yaml") && mapping.IsSourceFile(file.Filename) {
 			for _, concept := range concepts {
-				if concept != "process_monitoring" && identifierIn(concept, patch) {
+				if !mapping.IsFeatureName(concept) && identifierIn(concept, patch) {
 					found[concept] = struct{}{}
 				}
 			}
@@ -409,7 +404,7 @@ func changedConcepts(files []gh.PullRequestFile, mapping documents.Mapping) []st
 				continue
 			}
 			for _, concept := range concepts {
-				if concept != "process_monitoring" && identifierIn(concept, line) {
+				if !mapping.IsFeatureName(concept) && identifierIn(concept, line) {
 					found[concept] = struct{}{}
 				}
 			}
@@ -423,7 +418,7 @@ func changedConcepts(files []gh.PullRequestFile, mapping documents.Mapping) []st
 	return result
 }
 
-func diffContext(files []gh.PullRequestFile, concepts []string) []gh.PullRequestFile {
+func diffContext(files []gh.PullRequestFile, concepts []string, mapping documents.Mapping) []gh.PullRequestFile {
 	conceptSet := make(map[string]struct{}, len(concepts))
 	for _, concept := range concepts {
 		conceptSet[concept] = struct{}{}
@@ -432,7 +427,7 @@ func diffContext(files []gh.PullRequestFile, concepts []string) []gh.PullRequest
 	for _, file := range files {
 		contextFile := gh.PullRequestFile{Filename: file.Filename, Status: file.Status}
 		if len(concepts) > 0 {
-			relevant := strings.HasPrefix(file.Filename, "product/process_monitoring/")
+			relevant := mapping.IsSourceFile(file.Filename)
 			if !relevant {
 				for concept := range conceptSet {
 					if identifierIn(concept, file.Patch) {

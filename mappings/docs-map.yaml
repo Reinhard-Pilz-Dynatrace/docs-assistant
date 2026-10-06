@@ -3,12 +3,54 @@ process_monitoring:
     - process_monitoring
     - include_container_processes
     - scan_interval_seconds
+  source:
+    - product/process_monitoring/config.yaml
+    - product/process_monitoring/process_monitor.go
+    - product/process_monitoring/process_monitor_test.go
   docs:
     - path: docs/customer/process-monitoring.md
       audience: customer
       type: product-guide
       template: docs/templates/customer-product-guide.md
     - path: docs/internal/process-monitoring.md
+      audience: internal-developer
+      type: developer-guide
+      template: docs/templates/internal-developer-guide.md
+
+log_collection:
+  schema:
+    - log_collection
+    - max_file_size_mb
+    - include_rotated_files
+  source:
+    - product/log_collection/config.yaml
+    - product/log_collection/log_collector.go
+    - product/log_collection/log_collector_test.go
+  docs:
+    - path: docs/customer/log-collection.md
+      audience: customer
+      type: product-guide
+      template: docs/templates/customer-product-guide.md
+    - path: docs/internal/log-collection.md
+      audience: internal-developer
+      type: developer-guide
+      template: docs/templates/internal-developer-guide.md
+
+network_monitoring:
+  schema:
+    - network_monitoring
+    - sample_rate_percent
+    - capture_dns_queries
+  source:
+    - product/network_monitoring/config.yaml
+    - product/network_monitoring/network_monitor.go
+    - product/network_monitoring/network_monitor_test.go
+  docs:
+    - path: docs/customer/network-monitoring.md
+      audience: customer
+      type: product-guide
+      template: docs/templates/customer-product-guide.md
+    - path: docs/internal/network-monitoring.md
       audience: internal-developer
       type: developer-guide
       template: docs/templates/internal-developer-guide.md
