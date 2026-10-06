@@ -14,11 +14,13 @@ Configure metric export in `product/metric_export/config.yaml`.
 
 ## Defaults
 
-Metric export is enabled by default. The default value of `export_interval_seconds` is 15 seconds. Histograms are exported by default (`metric_export.include_histograms: true`).
+Metric export is enabled by default. The default value of `export_interval_seconds` is 30 seconds. Histograms are exported by default (`metric_export.include_histograms: true`).
+
+The change to a 30-second default affects the default cadence only. It does not change whether metric export is enabled.
 
 ## Limitations
 
-No platform limitations for metric export are established.
+No platform limitations for metric export are established. The 30-second default is a change in cadence only; no measured cost saving is claimed.
 
 ## Troubleshooting
 
