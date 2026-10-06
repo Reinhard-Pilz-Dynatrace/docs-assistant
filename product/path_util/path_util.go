@@ -6,5 +6,6 @@ import "strings"
 
 // NormalizeSlashes replaces backslashes with forward slashes.
 func NormalizeSlashes(path string) string {
-	return strings.ReplaceAll(path, "\\", "/")
+	const backslash = "\\"
+	return strings.ReplaceAll(path, backslash, "/")
 }
