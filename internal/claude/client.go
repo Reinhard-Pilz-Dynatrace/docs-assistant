@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,19 +20,31 @@ type ToolDefinition struct {
 	InputSchema json.RawMessage `json:"input_schema"`
 }
 
+// Finisher is optionally implemented by a ToolExecutor. Once Finished reports
+// true after a tool round, Run returns without asking Claude for another turn.
+type Finisher interface {
+	Finished() bool
+}
+
 type ToolExecutor interface {
 	Definitions() []ToolDefinition
 	Execute(context.Context, string, json.RawMessage) (any, error)
 }
 
 type Client struct {
-	APIKey       string
+	APIKey       string // sent as x-api-key
+	AuthToken    string // sent as Authorization: Bearer (gateway credential)
+	BaseURL      string // optional gateway base URL, e.g. https://gateway.example.com
 	Model        string
 	Endpoint     string
 	HTTPClient   *http.Client
 	MaxTokens    int
 	MaxToolTurns int
 }
+
+// ErrAbort marks a tool error that Claude cannot fix by retrying (for example a
+// failed GitHub write). Run stops and returns it instead of feeding it back.
+var ErrAbort = errors.New("agent run aborted")
 
 type ToolCall struct {
 	Name   string          `json:"name"`
@@ -88,8 +101,8 @@ type apiError struct {
 }
 
 func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, executor ToolExecutor) (RunResult, error) {
-	if client.APIKey == "" {
-		return RunResult{}, fmt.Errorf("ANTHROPIC_API_KEY is required for live agent runs")
+	if client.APIKey == "" && client.AuthToken == "" {
+		return RunResult{}, fmt.Errorf("ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN is required for live agent runs")
 	}
 	if client.Model == "" {
 		return RunResult{}, fmt.Errorf("ANTHROPIC_MODEL is required for live agent runs")
@@ -101,6 +114,9 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 	endpoint := client.Endpoint
 	if endpoint == "" {
 		endpoint = defaultEndpoint
+		if client.BaseURL != "" {
+			endpoint = strings.TrimRight(client.BaseURL, "/") + "/v1/messages"
+		}
 	}
 	httpClient := client.HTTPClient
 	if httpClient == nil {
@@ -112,7 +128,7 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 	}
 	maxTurns := client.MaxToolTurns
 	if maxTurns <= 0 {
-		maxTurns = 8
+		maxTurns = 12
 	}
 
 	result := RunResult{Model: client.Model}
@@ -134,7 +150,11 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 		if err != nil {
 			return result, fmt.Errorf("create Claude request: %w", err)
 		}
-		request.Header.Set("x-api-key", client.APIKey)
+		if client.AuthToken != "" {
+			request.Header.Set("Authorization", "Bearer "+client.AuthToken)
+		} else {
+			request.Header.Set("x-api-key", client.APIKey)
+		}
 		request.Header.Set("anthropic-version", "2023-06-01")
 		request.Header.Set("content-type", "application/json")
 
@@ -193,6 +213,9 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 				toolCall.Error = executeErr.Error()
 			}
 			result.ToolCalls = append(result.ToolCalls, toolCall)
+			if errors.Is(executeErr, ErrAbort) {
+				return result, executeErr
+			}
 			toolResults = append(toolResults, contentPart{
 				Type:      "tool_result",
 				ToolUseID: part.ID,
@@ -202,6 +225,9 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 		}
 		if len(toolResults) == 0 {
 			return result, fmt.Errorf("Claude requested tool use without tool calls")
+		}
+		if finisher, ok := executor.(Finisher); ok && finisher.Finished() {
+			return result, nil
 		}
 		messages = append(messages, message{Role: "user", Content: toolResults})
 	}

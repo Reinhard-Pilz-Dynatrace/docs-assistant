@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -101,5 +102,62 @@ func TestRunReturnsToolErrorsToClaude(t *testing.T) {
 	client := Client{APIKey: "test-key", Model: "test-model", Endpoint: server.URL, HTTPClient: server.Client()}
 	if _, err := client.Run(context.Background(), "system", "inspect", executor); err != nil {
 		t.Fatalf("Run() error = %v", err)
+	}
+}
+
+func TestRunUsesGatewayBaseURLAndBearerToken(t *testing.T) {
+	var path, authorization, apiKey string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		path = request.URL.Path
+		authorization = request.Header.Get("Authorization")
+		apiKey = request.Header.Get("x-api-key")
+		_, _ = writer.Write([]byte(`{"model":"test-model","stop_reason":"end_turn","content":[{"type":"text","text":"ok"}]}`))
+	}))
+	defer server.Close()
+
+	client := Client{AuthToken: "gateway-token", BaseURL: server.URL + "/", Model: "test-model", HTTPClient: server.Client()}
+	if _, err := client.Run(context.Background(), "system", "go", &testExecutor{}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if path != "/v1/messages" || authorization != "Bearer gateway-token" || apiKey != "" {
+		t.Fatalf("path = %q, Authorization = %q, x-api-key = %q", path, authorization, apiKey)
+	}
+}
+
+func TestRunStopsOnAbortErrorAndKeepsTrace(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests++
+		_, _ = writer.Write([]byte(`{"model":"test-model","stop_reason":"tool_use","content":[{"type":"tool_use","id":"call-1","name":"inspect_vi","input":{}}]}`))
+	}))
+	defer server.Close()
+
+	executor := &testExecutor{err: fmt.Errorf("%w: github said no", ErrAbort)}
+	client := Client{APIKey: "test-key", Model: "test-model", Endpoint: server.URL, HTTPClient: server.Client()}
+	result, err := client.Run(context.Background(), "system", "inspect", executor)
+	if !errors.Is(err, ErrAbort) {
+		t.Fatalf("Run() error = %v, want ErrAbort", err)
+	}
+	if requests != 1 || len(result.ToolCalls) != 1 || result.ToolCalls[0].Error == "" {
+		t.Fatalf("requests = %d, trace = %#v", requests, result.ToolCalls)
+	}
+}
+
+type finishingExecutor struct{ testExecutor }
+
+func (executor *finishingExecutor) Finished() bool { return len(executor.calls) > 0 }
+
+func TestRunEndsWhenExecutorFinishes(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests++
+		_, _ = writer.Write([]byte(`{"model":"test-model","stop_reason":"tool_use","content":[{"type":"tool_use","id":"call-1","name":"inspect_vi","input":{}}]}`))
+	}))
+	defer server.Close()
+
+	client := Client{APIKey: "test-key", Model: "test-model", Endpoint: server.URL, HTTPClient: server.Client()}
+	result, err := client.Run(context.Background(), "system", "go", &finishingExecutor{})
+	if err != nil || requests != 1 || len(result.ToolCalls) != 1 {
+		t.Fatalf("err = %v, requests = %d, trace = %#v", err, requests, result.ToolCalls)
 	}
 }

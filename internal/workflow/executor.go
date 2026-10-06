@@ -27,6 +27,7 @@ type Executor struct {
 	IssueNumber int
 	RepoRoot    string
 	Model       string
+	Gateway     string // host of the Claude gateway, empty for api.anthropic.com
 	Issue       gh.Issue
 	Pull        gh.PullRequest
 	PullFiles   []gh.PullRequestFile
@@ -90,10 +91,13 @@ func (executor *Executor) Definitions() []claude.ToolDefinition {
 		{
 			Name:        "submit_resolution",
 			Description: "Submit the evidence-grounded Doc Contract after inspecting the VI and mapped context. This validates the proposal, then either blocks the VI, marks no-impact complete, or opens a human-review docs PR.",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"contract":{"type":"object","description":"Doc Contract with version, provider, work_item, change, decision, evidence, claims, affected_documents, conflicts, and missing_information. Decisions: propose_docs, needs_clarification, no_docs_impact. Every claim and conflict must cite known evidence IDs. Each document must use an exact mapped path, audience, type, and template, and include complete Markdown."}},"required":["contract"],"additionalProperties":false}`),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"contract":{"type":"object","description":"Doc Contract. Decisions: propose_docs, needs_clarification, no_docs_impact. Every claim and conflict must cite evidence IDs returned by the tools. Each affected document must use the exact mapped path, audience, type, and template, and include the complete Markdown page with all template headings. provider, work_item, and change are filled in by the system; omit them or leave them empty.","properties":{"version":{"type":"string","enum":["1"]},"decision":{"type":"string","enum":["propose_docs","needs_clarification","no_docs_impact"]},"evidence":{"type":"array","description":"Evidence objects copied from tool results; only the id is required.","items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}},"claims":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"audience":{"type":"string","enum":["customer","internal-developer"]},"evidence_ids":{"type":"array","minItems":1,"items":{"type":"string"}}},"required":["text","audience","evidence_ids"]}},"affected_documents":{"type":"array","items":{"type":"object","properties":{"path":{"type":"string"},"audience":{"type":"string"},"type":{"type":"string"},"template":{"type":"string"},"markdown":{"type":"string","minLength":1}},"required":["path","audience","type","template","markdown"]}},"conflicts":{"type":"array","items":{"type":"object","properties":{"description":{"type":"string"},"evidence_ids":{"type":"array","items":{"type":"string"}},"blocks_resolution":{"type":"boolean"}},"required":["description","evidence_ids","blocks_resolution"]}},"missing_information":{"type":"array","items":{"type":"string"}}},"required":["version","decision","evidence","claims","affected_documents","conflicts","missing_information"]}},"required":["contract"],"additionalProperties":false}`),
 		},
 	}
 }
+
+// Finished reports that submit_resolution succeeded, so the run can end.
+func (executor *Executor) Finished() bool { return executor.Submitted }
 
 func (executor *Executor) Execute(ctx context.Context, name string, input json.RawMessage) (any, error) {
 	switch name {
@@ -259,6 +263,13 @@ func (executor *Executor) submitResolution(ctx context.Context, input json.RawMe
 	contract.Change.DocumentationAudiences = audiences(executor.Targets)
 	contract.Change.CustomerVisible = containsAudience(executor.Targets, "customer")
 	contract.Evidence = executor.canonicalEvidence(contract.Evidence)
+	for index, proposal := range contract.AffectedDocuments {
+		for _, target := range executor.Targets {
+			if target.Path == proposal.Path {
+				contract.AffectedDocuments[index].Reason = target.Reason
+			}
+		}
+	}
 	if contract.Evidence == nil {
 		return nil, fmt.Errorf("contract must reference evidence returned by tools")
 	}
@@ -297,19 +308,19 @@ func (executor *Executor) submitResolution(ctx context.Context, input json.RawMe
 	case documents.DecisionNeedsClarification:
 		comment := resolutionComment(contract)
 		if err := executor.GitHub.SetWorkflowLabel(ctx, executor.Issue.Number, "vi:needs-clarification"); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		if err := executor.GitHub.AddIssueComment(ctx, executor.Issue.Number, comment); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		executor.appendSummary("Needs clarification", contract, "")
 		return map[string]any{"status": "vi:needs-clarification", "message": "VI blocked with evidence and follow-up questions"}, nil
 	case documents.DecisionNoDocsImpact:
 		if err := executor.GitHub.SetWorkflowLabel(ctx, executor.Issue.Number, "vi:done"); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		if err := executor.GitHub.AddIssueComment(ctx, executor.Issue.Number, "No mapped documentation impact was found. The VI can be resolved without a docs PR.\n\nSee the workflow artifact for the Doc Contract and evidence."); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		executor.appendSummary("No documentation impact", contract, "")
 		return map[string]any{"status": "vi:done", "message": "No docs PR was needed"}, nil
@@ -320,20 +331,25 @@ func (executor *Executor) submitResolution(ctx context.Context, input json.RawMe
 		}
 		pull, err := executor.GitHub.CreateDocumentationPR(ctx, executor.Issue.Number, fmt.Sprintf("docs: update process monitoring for VI #%d", executor.Issue.Number), docsPRBody(contract, executor.Pull), files)
 		if err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		if err := executor.GitHub.SetWorkflowLabel(ctx, executor.Issue.Number, "vi:docs-review"); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		executor.DocsPRURL = pull.HTMLURL
 		if err := executor.GitHub.AddIssueComment(ctx, executor.Issue.Number, fmt.Sprintf("Documentation proposal is ready for human review: %s\n\nThe VI is now labeled `vi:docs-review`. The documentation PR will not be merged automatically.", pull.HTMLURL)); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		executor.appendSummary("Documentation proposal", contract, pull.HTMLURL)
 		return map[string]any{"status": "vi:docs-review", "docs_pr": pull.HTMLURL}, nil
 	default:
 		return nil, fmt.Errorf("unsupported decision %q", contract.Decision)
 	}
+}
+
+// publishError marks GitHub write failures as fatal so Claude does not retry them.
+func publishError(err error) error {
+	return fmt.Errorf("%w: publish resolution to GitHub: %v", claude.ErrAbort, err)
 }
 
 func (executor *Executor) HandlePrematureClosure(ctx context.Context) error {
@@ -605,6 +621,9 @@ func (executor *Executor) appendSummary(title string, contract documents.Contrac
 	fmt.Fprintf(&content, "- VI: [#%d](%s)\n", executor.Issue.Number, executor.Issue.HTMLURL)
 	fmt.Fprintf(&content, "- Implementation PR: [#%d](%s)\n", executor.Pull.Number, executor.Pull.HTMLURL)
 	fmt.Fprintf(&content, "- Provider: Anthropic Claude (`%s`)\n", executor.Model)
+	if executor.Gateway != "" {
+		fmt.Fprintf(&content, "- Gateway: `%s`\n", executor.Gateway)
+	}
 	fmt.Fprintf(&content, "- Decision: `%s`\n", contract.Decision)
 	fmt.Fprintf(&content, "- Context: %d selected files, approximately %d characters from %d tracked files (%.1f%% reduction)\n", executor.measurement.SelectedFiles, executor.measurement.SelectedChars, executor.measurement.RepositoryFiles, executor.measurement.ReductionPct)
 	if docsPR != "" {

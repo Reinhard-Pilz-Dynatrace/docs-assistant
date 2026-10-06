@@ -1,4 +1,4 @@
 process_monitoring:
   enabled: true
-  scan_interval_seconds: 30
+  scan_interval_seconds: 60
   include_container_processes: true

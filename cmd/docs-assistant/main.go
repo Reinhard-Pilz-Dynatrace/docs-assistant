@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -109,9 +110,11 @@ func run() error {
 	}
 
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	authToken := os.Getenv("ANTHROPIC_AUTH_TOKEN")
+	baseURL := os.Getenv("ANTHROPIC_BASE_URL")
 	model := os.Getenv("ANTHROPIC_MODEL")
-	if apiKey == "" || model == "" {
-		return fmt.Errorf("live agent run requires ANTHROPIC_API_KEY and ANTHROPIC_MODEL")
+	if (apiKey == "" && authToken == "") || model == "" {
+		return fmt.Errorf("live agent run requires ANTHROPIC_MODEL and ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN")
 	}
 	mappingFile, err := os.Open(filepath.Join(absoluteRoot, "mappings", "docs-map.yaml"))
 	if err != nil {
@@ -127,9 +130,20 @@ func run() error {
 	}
 
 	executor := workflow.NewExecutor(client, mapping, *issueNumber, absoluteRoot, model)
-	claudeClient := claude.Client{APIKey: apiKey, Model: model}
+	if baseURL != "" {
+		parsed, parseErr := url.Parse(baseURL)
+		if parseErr != nil || parsed.Host == "" {
+			return fmt.Errorf("ANTHROPIC_BASE_URL is not a valid URL")
+		}
+		executor.Gateway = parsed.Host
+	}
+	claudeClient := claude.Client{APIKey: apiKey, AuthToken: authToken, BaseURL: baseURL, Model: model}
 	result, err := claudeClient.Run(context.Background(), workflow.SystemPrompt(), workflow.UserPrompt(*issueNumber), executor)
 	if err != nil {
+		if traceErr := saveToolTrace(absoluteRoot, *issueNumber, result); traceErr != nil {
+			fmt.Fprintf(os.Stderr, "save partial tool trace: %v\n", traceErr)
+		}
+		appendToolSummary(result)
 		return fmt.Errorf("resolve VI with Claude: %w", err)
 	}
 	if !executor.Submitted {
