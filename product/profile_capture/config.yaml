@@ -1,4 +1,4 @@
 profile_capture:
   enabled: false
-  max_profile_seconds: 60
+  max_profile_seconds: 120
   capture_native_frames: false

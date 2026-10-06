@@ -15,7 +15,7 @@ func TestCheckedInConfigDefaults(t *testing.T) {
 		t.Fatalf("ParseConfig() error = %v", err)
 	}
 	got := config.ProfileCapture
-	if got.Enabled != false || got.MaxProfileSeconds != 60 || got.CaptureNativeFrames != false {
+	if got.Enabled != false || got.MaxProfileSeconds != 120 || got.CaptureNativeFrames != false {
 		t.Fatalf("checked-in defaults = %#v", got)
 	}
 }
