@@ -11,7 +11,7 @@ Last checked: 2026-10-06. For scope, architecture, demo scenarios, and the compl
 - Claude access through either `ANTHROPIC_API_KEY` (direct API) or `ANTHROPIC_AUTH_TOKEN` (Bearer) with an optional `ANTHROPIC_BASE_URL` gateway. The Action summary names the model and gateway host.
 - GitHub integration: mutually exclusive `vi:*` labels, issue comments, docs branch/PR creation, premature-closure reopening.
 - GitHub Actions: `documentation-agent.yml` (live agent) and `ci.yml` (gofmt, vet, test on PRs; pending merge of PR #17 if not yet on `main`).
-- Compact, GitHub-rendered report format for docs PRs, clarification comments, and job summaries (tables, collapsible evidence, short evidence labels, measured context reduction). Rendering was checked with GitHub's Markdown API; it has not yet been seen on a real live-run PR.
+- Compact, GitHub-rendered report format for docs PRs, clarification comments, and job summaries (tables, collapsible evidence, short evidence labels, measured context reduction), seen on real live-run output.
 
 ## Verified live (real Claude through the gateway, real GitHub Actions)
 
@@ -23,7 +23,11 @@ Last checked: 2026-10-06. For scope, architecture, demo scenarios, and the compl
 | C: no documentation impact | #15 | `vi:done`, no docs PR |
 | Premature closure | #13 | Closed early, automatically reopened with an explanation |
 
-Those runs used the earlier, more cluttered report format. Docs PRs were reviewed and merged by a human; the agent never merges documentation.
+The first four rows used the earlier, more cluttered report format; Set A runs use the current one. Docs PRs were reviewed and merged by a human; the agent never merges documentation.
+
+## Demo sets
+
+Two independent sets of four VIs (live, regression, blocked, no impact) exist on separate fictional features, labeled `demo:set-a` (team) and `demo:set-b` (jury). Set A's regression (#26), blocked (#28) and no-impact (#30) tickets were pre-run live; its live ticket (#24) and all of Set B (#33, #35, #37, #39) are unrun. Tickets are single-use. The presenter runbook and the brief for building slides are in [DEMO.md](DEMO.md).
 
 ## Setup
 
@@ -32,9 +36,8 @@ Those runs used the earlier, more cluttered report format. Docs PRs were reviewe
 
 ## Remaining
 
-- Rehearse on a fresh feature (for example `network_monitoring`) with the new report format and review the result on GitHub.
-- Make the blocked-VI demo harder to spot: keep implementation PR descriptions neutral so the agent must find the conflict from code and VI alone.
-- Write a short demo script in the README (pre-run one scenario, trigger one live).
+- Docs PR #32 (Set A regression) awaits human review.
+- Take the screenshots listed in `DEMO.md` and build the slides.
 - A run that ends without a submission still saves no trace artifact.
 - VI #13 is deliberately left in `vi:needs-clarification` as the blocked example.
 - Keep `PROJECT.md` as the source of truth if scope or architecture decisions change.
