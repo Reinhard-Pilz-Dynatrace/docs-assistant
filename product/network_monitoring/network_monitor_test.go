@@ -15,7 +15,7 @@ func TestCheckedInConfigDefaults(t *testing.T) {
 		t.Fatalf("ParseConfig() error = %v", err)
 	}
 	got := config.NetworkMonitoring
-	if got.Enabled || got.SampleRatePercent != 10 || got.CaptureDNSQueries {
+	if got.Enabled || got.SampleRatePercent != 10 || !got.CaptureDNSQueries {
 		t.Fatalf("checked-in defaults = %#v", got)
 	}
 }
