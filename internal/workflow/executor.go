@@ -298,19 +298,19 @@ func (executor *Executor) submitResolution(ctx context.Context, input json.RawMe
 	case documents.DecisionNeedsClarification:
 		comment := resolutionComment(contract)
 		if err := executor.GitHub.SetWorkflowLabel(ctx, executor.Issue.Number, "vi:needs-clarification"); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		if err := executor.GitHub.AddIssueComment(ctx, executor.Issue.Number, comment); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		executor.appendSummary("Needs clarification", contract, "")
 		return map[string]any{"status": "vi:needs-clarification", "message": "VI blocked with evidence and follow-up questions"}, nil
 	case documents.DecisionNoDocsImpact:
 		if err := executor.GitHub.SetWorkflowLabel(ctx, executor.Issue.Number, "vi:done"); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		if err := executor.GitHub.AddIssueComment(ctx, executor.Issue.Number, "No mapped documentation impact was found. The VI can be resolved without a docs PR.\n\nSee the workflow artifact for the Doc Contract and evidence."); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		executor.appendSummary("No documentation impact", contract, "")
 		return map[string]any{"status": "vi:done", "message": "No docs PR was needed"}, nil
@@ -321,20 +321,25 @@ func (executor *Executor) submitResolution(ctx context.Context, input json.RawMe
 		}
 		pull, err := executor.GitHub.CreateDocumentationPR(ctx, executor.Issue.Number, fmt.Sprintf("docs: update process monitoring for VI #%d", executor.Issue.Number), docsPRBody(contract, executor.Pull), files)
 		if err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		if err := executor.GitHub.SetWorkflowLabel(ctx, executor.Issue.Number, "vi:docs-review"); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		executor.DocsPRURL = pull.HTMLURL
 		if err := executor.GitHub.AddIssueComment(ctx, executor.Issue.Number, fmt.Sprintf("Documentation proposal is ready for human review: %s\n\nThe VI is now labeled `vi:docs-review`. The documentation PR will not be merged automatically.", pull.HTMLURL)); err != nil {
-			return nil, err
+			return nil, publishError(err)
 		}
 		executor.appendSummary("Documentation proposal", contract, pull.HTMLURL)
 		return map[string]any{"status": "vi:docs-review", "docs_pr": pull.HTMLURL}, nil
 	default:
 		return nil, fmt.Errorf("unsupported decision %q", contract.Decision)
 	}
+}
+
+// publishError marks GitHub write failures as fatal so Claude does not retry them.
+func publishError(err error) error {
+	return fmt.Errorf("%w: publish resolution to GitHub: %v", claude.ErrAbort, err)
 }
 
 func (executor *Executor) HandlePrematureClosure(ctx context.Context) error {

@@ -140,6 +140,10 @@ func run() error {
 	claudeClient := claude.Client{APIKey: apiKey, AuthToken: authToken, BaseURL: baseURL, Model: model}
 	result, err := claudeClient.Run(context.Background(), workflow.SystemPrompt(), workflow.UserPrompt(*issueNumber), executor)
 	if err != nil {
+		if traceErr := saveToolTrace(absoluteRoot, *issueNumber, result); traceErr != nil {
+			fmt.Fprintf(os.Stderr, "save partial tool trace: %v\n", traceErr)
+		}
+		appendToolSummary(result)
 		return fmt.Errorf("resolve VI with Claude: %w", err)
 	}
 	if !executor.Submitted {

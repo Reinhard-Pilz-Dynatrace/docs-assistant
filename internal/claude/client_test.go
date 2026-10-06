@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -120,5 +121,24 @@ func TestRunUsesGatewayBaseURLAndBearerToken(t *testing.T) {
 	}
 	if path != "/v1/messages" || authorization != "Bearer gateway-token" || apiKey != "" {
 		t.Fatalf("path = %q, Authorization = %q, x-api-key = %q", path, authorization, apiKey)
+	}
+}
+
+func TestRunStopsOnAbortErrorAndKeepsTrace(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests++
+		_, _ = writer.Write([]byte(`{"model":"test-model","stop_reason":"tool_use","content":[{"type":"tool_use","id":"call-1","name":"inspect_vi","input":{}}]}`))
+	}))
+	defer server.Close()
+
+	executor := &testExecutor{err: fmt.Errorf("%w: github said no", ErrAbort)}
+	client := Client{APIKey: "test-key", Model: "test-model", Endpoint: server.URL, HTTPClient: server.Client()}
+	result, err := client.Run(context.Background(), "system", "inspect", executor)
+	if !errors.Is(err, ErrAbort) {
+		t.Fatalf("Run() error = %v, want ErrAbort", err)
+	}
+	if requests != 1 || len(result.ToolCalls) != 1 || result.ToolCalls[0].Error == "" {
+		t.Fatalf("requests = %d, trace = %#v", requests, result.ToolCalls)
 	}
 }
