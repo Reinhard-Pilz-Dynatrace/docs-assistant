@@ -7,6 +7,8 @@ Read `PROJECT.md` before project work. It is the source of truth for scope, arch
 - Keep the user informed before consequential steps and at meaningful milestones.
 - Before implementation, summarize the intended scope and wait for explicit approval. Planning and instruction-file edits are not implementation approval.
 - Raise unresolved questions, GitHub constraints, and credential dependencies early; do not silently broaden scope.
+- Use `gh` for routine repository inspection and for issue/PR setup or updates that advance requested work; do not ask for separate permission to use the CLI.
+- Once implementation is authorized and focused checks pass, you may commit and push scoped changes to a suitable remote feature/demo branch without another confirmation. Do not force-push, rewrite shared history, push directly to `main`, or merge PRs unless explicitly asked. Never auto-merge documentation PRs.
 
 ## Project Rules
 

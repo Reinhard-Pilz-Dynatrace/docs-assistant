@@ -7,6 +7,8 @@ Read `PROJECT.md` before making project decisions. It is the source of truth for
 - Keep the user informed before consequential steps and at meaningful milestones.
 - Before implementation, summarize the intended scope and wait for explicit approval. Planning or instruction-file edits do not authorize implementation. Do not start or silently expand implementation work.
 - Surface ambiguity, GitHub limitations, credentials, and other demo risks early. Make small, reversible decisions where the brief leaves details open.
+- Use `gh` for routine repository inspection and for issue/PR setup or updates that advance requested work; do not ask for separate permission to use the CLI.
+- Once implementation is authorized and focused checks pass, you may commit and push scoped changes to a suitable remote feature/demo branch without another confirmation. Do not force-push, rewrite shared history, push directly to `main`, or merge PRs unless explicitly asked. Never auto-merge documentation PRs.
 
 ## Project Constraints
 
