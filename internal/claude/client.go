@@ -20,6 +20,12 @@ type ToolDefinition struct {
 	InputSchema json.RawMessage `json:"input_schema"`
 }
 
+// Finisher is optionally implemented by a ToolExecutor. Once Finished reports
+// true after a tool round, Run returns without asking Claude for another turn.
+type Finisher interface {
+	Finished() bool
+}
+
 type ToolExecutor interface {
 	Definitions() []ToolDefinition
 	Execute(context.Context, string, json.RawMessage) (any, error)
@@ -122,7 +128,7 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 	}
 	maxTurns := client.MaxToolTurns
 	if maxTurns <= 0 {
-		maxTurns = 8
+		maxTurns = 12
 	}
 
 	result := RunResult{Model: client.Model}
@@ -219,6 +225,9 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 		}
 		if len(toolResults) == 0 {
 			return result, fmt.Errorf("Claude requested tool use without tool calls")
+		}
+		if finisher, ok := executor.(Finisher); ok && finisher.Finished() {
+			return result, nil
 		}
 		messages = append(messages, message{Role: "user", Content: toolResults})
 	}

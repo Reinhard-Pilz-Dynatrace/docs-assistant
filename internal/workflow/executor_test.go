@@ -151,3 +151,11 @@ func TestSubmitResolutionRejectsNoImpactWhenDocsWereSelected(t *testing.T) {
 		t.Fatalf("submitResolution() error = %v, want false no-impact rejection", err)
 	}
 }
+
+func TestDocsPRBodyShowsMappingReason(t *testing.T) {
+	contract := documents.Contract{AffectedDocuments: []documents.DocumentProposal{{DocumentTarget: documents.DocumentTarget{Path: "docs/a.md", Audience: "customer", Type: "product-guide", Reason: "settings-schema mapping"}}}}
+	body := docsPRBody(contract, gh.PullRequest{Number: 4})
+	if !strings.Contains(body, "`docs/a.md` (customer / product-guide): settings-schema mapping") {
+		t.Fatalf("body = %s", body)
+	}
+}
