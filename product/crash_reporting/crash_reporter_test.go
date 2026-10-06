@@ -15,7 +15,7 @@ func TestCheckedInConfigDefaults(t *testing.T) {
 		t.Fatalf("ParseConfig() error = %v", err)
 	}
 	got := config.CrashReporting
-	if got.Enabled != true || got.MaxDumpSizeMB != 64 || got.IncludeEnvironment != false {
+	if got.Enabled != true || got.MaxDumpSizeMB != 64 || got.IncludeEnvironment != true {
 		t.Fatalf("checked-in defaults = %#v", got)
 	}
 }

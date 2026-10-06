@@ -1,4 +1,4 @@
 crash_reporting:
   enabled: true
   max_dump_size_mb: 64
-  include_environment: false
+  include_environment: true
