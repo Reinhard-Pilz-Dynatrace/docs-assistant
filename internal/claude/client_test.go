@@ -103,3 +103,22 @@ func TestRunReturnsToolErrorsToClaude(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 }
+
+func TestRunUsesGatewayBaseURLAndBearerToken(t *testing.T) {
+	var path, authorization, apiKey string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		path = request.URL.Path
+		authorization = request.Header.Get("Authorization")
+		apiKey = request.Header.Get("x-api-key")
+		_, _ = writer.Write([]byte(`{"model":"test-model","stop_reason":"end_turn","content":[{"type":"text","text":"ok"}]}`))
+	}))
+	defer server.Close()
+
+	client := Client{AuthToken: "gateway-token", BaseURL: server.URL + "/", Model: "test-model", HTTPClient: server.Client()}
+	if _, err := client.Run(context.Background(), "system", "go", &testExecutor{}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if path != "/v1/messages" || authorization != "Bearer gateway-token" || apiKey != "" {
+		t.Fatalf("path = %q, Authorization = %q, x-api-key = %q", path, authorization, apiKey)
+	}
+}

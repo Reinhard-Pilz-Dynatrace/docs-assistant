@@ -43,7 +43,7 @@ Run the deterministic tests:
 go test ./...
 ```
 
-For a live local run, authenticate with `gh auth login`, set `GITHUB_REPOSITORY=owner/name`, `ANTHROPIC_API_KEY`, and `ANTHROPIC_MODEL` in your shell, then run:
+For a live local run, authenticate with `gh auth login`, set `GITHUB_REPOSITORY=owner/name`, `ANTHROPIC_MODEL`, and either `ANTHROPIC_API_KEY` (direct API) or `ANTHROPIC_AUTH_TOKEN` with optional `ANTHROPIC_BASE_URL` (gateway) in your shell, then run:
 
 ```sh
 go run ./cmd/docs-assistant --issue 123
@@ -61,7 +61,7 @@ for label in vi:in-progress vi:ready-for-docs vi:needs-clarification vi:docs-rev
 done
 ```
 
-In repository settings, add the Actions secret `ANTHROPIC_API_KEY` and the repository variable `ANTHROPIC_MODEL` containing a model ID supported by your Claude account. The workflow's `GITHUB_TOKEN` uses only `contents: write`, `issues: write`, and `pull-requests: write` to update labels, publish docs branches, and open review PRs.
+In repository settings, add the Actions secret `ANTHROPIC_AUTH_TOKEN` (or `ANTHROPIC_API_KEY` for the direct API; update the workflow `env` to match) and the repository variables `ANTHROPIC_BASE_URL` (gateway only) and `ANTHROPIC_MODEL` containing a model ID supported by your Claude account. The workflow's `GITHUB_TOKEN` uses only `contents: write`, `issues: write`, and `pull-requests: write` to update labels, publish docs branches, and open review PRs.
 
 ## Jury Demo
 

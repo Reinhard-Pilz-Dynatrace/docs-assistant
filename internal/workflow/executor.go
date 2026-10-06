@@ -27,6 +27,7 @@ type Executor struct {
 	IssueNumber int
 	RepoRoot    string
 	Model       string
+	Gateway     string // host of the Claude gateway, empty for api.anthropic.com
 	Issue       gh.Issue
 	Pull        gh.PullRequest
 	PullFiles   []gh.PullRequestFile
@@ -605,6 +606,9 @@ func (executor *Executor) appendSummary(title string, contract documents.Contrac
 	fmt.Fprintf(&content, "- VI: [#%d](%s)\n", executor.Issue.Number, executor.Issue.HTMLURL)
 	fmt.Fprintf(&content, "- Implementation PR: [#%d](%s)\n", executor.Pull.Number, executor.Pull.HTMLURL)
 	fmt.Fprintf(&content, "- Provider: Anthropic Claude (`%s`)\n", executor.Model)
+	if executor.Gateway != "" {
+		fmt.Fprintf(&content, "- Gateway: `%s`\n", executor.Gateway)
+	}
 	fmt.Fprintf(&content, "- Decision: `%s`\n", contract.Decision)
 	fmt.Fprintf(&content, "- Context: %d selected files, approximately %d characters from %d tracked files (%.1f%% reduction)\n", executor.measurement.SelectedFiles, executor.measurement.SelectedChars, executor.measurement.RepositoryFiles, executor.measurement.ReductionPct)
 	if docsPR != "" {
