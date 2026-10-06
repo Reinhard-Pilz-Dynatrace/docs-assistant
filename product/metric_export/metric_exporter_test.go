@@ -15,7 +15,7 @@ func TestCheckedInConfigDefaults(t *testing.T) {
 		t.Fatalf("ParseConfig() error = %v", err)
 	}
 	got := config.MetricExport
-	if got.Enabled != true || got.ExportIntervalSeconds != 15 || got.IncludeHistograms != true {
+	if got.Enabled != true || got.ExportIntervalSeconds != 30 || got.IncludeHistograms != true {
 		t.Fatalf("checked-in defaults = %#v", got)
 	}
 }
