@@ -23,7 +23,7 @@ Repository: [docs-assistant](https://github.com/Reinhard-Pilz-Dynatrace/docs-ass
 - Both PRs were last checked as open and mergeable against `main`; neither had CI checks configured. Their test-file hunks overlap, so check/resolve a possible merge conflict after merging either one.
 - Neither VI has `vi:ready-for-docs`; no live documentation-resolution workflow has been triggered.
 
-Current local branch: `demo/vi-2-scan-interval` at `7ccbe4e`. Local process-monitoring config is set to 60 seconds. The worktree was clean at the last check.
+At the last demo-state check, feature branch `demo/vi-2-scan-interval` was at `7ccbe4e`, with the process-monitoring interval set to 60 seconds. The worktree was clean at that check.
 
 ## Validation And Remaining Gates
 
