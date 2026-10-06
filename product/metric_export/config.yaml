@@ -1,4 +1,4 @@
 metric_export:
   enabled: true
-  export_interval_seconds: 15
+  export_interval_seconds: 30
   include_histograms: true
