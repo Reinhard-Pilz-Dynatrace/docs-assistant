@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,6 +35,10 @@ type Client struct {
 	MaxTokens    int
 	MaxToolTurns int
 }
+
+// ErrAbort marks a tool error that Claude cannot fix by retrying (for example a
+// failed GitHub write). Run stops and returns it instead of feeding it back.
+var ErrAbort = errors.New("agent run aborted")
 
 type ToolCall struct {
 	Name   string          `json:"name"`
@@ -202,6 +207,9 @@ func (client Client) Run(ctx context.Context, systemPrompt, userPrompt string, e
 				toolCall.Error = executeErr.Error()
 			}
 			result.ToolCalls = append(result.ToolCalls, toolCall)
+			if errors.Is(executeErr, ErrAbort) {
+				return result, executeErr
+			}
 			toolResults = append(toolResults, contentPart{
 				Type:      "tool_result",
 				ToolUseID: part.ID,
