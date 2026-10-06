@@ -54,3 +54,117 @@ network_monitoring:
       audience: internal-developer
       type: developer-guide
       template: docs/templates/internal-developer-guide.md
+
+trace_sampling:
+  schema:
+    - trace_sampling
+    - sample_ratio_percent
+    - propagate_baggage
+  source:
+    - product/trace_sampling/config.yaml
+    - product/trace_sampling/trace_sampler.go
+    - product/trace_sampling/trace_sampler_test.go
+  docs:
+    - path: docs/customer/trace-sampling.md
+      audience: customer
+      type: product-guide
+      template: docs/templates/customer-product-guide.md
+    - path: docs/internal/trace-sampling.md
+      audience: internal-developer
+      type: developer-guide
+      template: docs/templates/internal-developer-guide.md
+
+metric_export:
+  schema:
+    - metric_export
+    - export_interval_seconds
+    - include_histograms
+  source:
+    - product/metric_export/config.yaml
+    - product/metric_export/metric_exporter.go
+    - product/metric_export/metric_exporter_test.go
+  docs:
+    - path: docs/customer/metric-export.md
+      audience: customer
+      type: product-guide
+      template: docs/templates/customer-product-guide.md
+    - path: docs/internal/metric-export.md
+      audience: internal-developer
+      type: developer-guide
+      template: docs/templates/internal-developer-guide.md
+
+crash_reporting:
+  schema:
+    - crash_reporting
+    - max_dump_size_mb
+    - include_environment
+  source:
+    - product/crash_reporting/config.yaml
+    - product/crash_reporting/crash_reporter.go
+    - product/crash_reporting/crash_reporter_test.go
+  docs:
+    - path: docs/customer/crash-reporting.md
+      audience: customer
+      type: product-guide
+      template: docs/templates/customer-product-guide.md
+    - path: docs/internal/crash-reporting.md
+      audience: internal-developer
+      type: developer-guide
+      template: docs/templates/internal-developer-guide.md
+
+error_tracking:
+  schema:
+    - error_tracking
+    - max_stack_frames
+    - group_similar_errors
+  source:
+    - product/error_tracking/config.yaml
+    - product/error_tracking/error_tracker.go
+    - product/error_tracking/error_tracker_test.go
+  docs:
+    - path: docs/customer/error-tracking.md
+      audience: customer
+      type: product-guide
+      template: docs/templates/customer-product-guide.md
+    - path: docs/internal/error-tracking.md
+      audience: internal-developer
+      type: developer-guide
+      template: docs/templates/internal-developer-guide.md
+
+heartbeat:
+  schema:
+    - heartbeat
+    - heartbeat_interval_seconds
+    - include_host_metadata
+  source:
+    - product/heartbeat/config.yaml
+    - product/heartbeat/heartbeat.go
+    - product/heartbeat/heartbeat_test.go
+  docs:
+    - path: docs/customer/heartbeat.md
+      audience: customer
+      type: product-guide
+      template: docs/templates/customer-product-guide.md
+    - path: docs/internal/heartbeat.md
+      audience: internal-developer
+      type: developer-guide
+      template: docs/templates/internal-developer-guide.md
+
+profile_capture:
+  schema:
+    - profile_capture
+    - max_profile_seconds
+    - capture_native_frames
+  source:
+    - product/profile_capture/config.yaml
+    - product/profile_capture/profile_capturer.go
+    - product/profile_capture/profile_capturer_test.go
+  docs:
+    - path: docs/customer/profile-capture.md
+      audience: customer
+      type: product-guide
+      template: docs/templates/customer-product-guide.md
+    - path: docs/internal/profile-capture.md
+      audience: internal-developer
+      type: developer-guide
+      template: docs/templates/internal-developer-guide.md

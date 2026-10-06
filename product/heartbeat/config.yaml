@@ -1,0 +1,4 @@
+heartbeat:
+  enabled: true
+  heartbeat_interval_seconds: 20
+  include_host_metadata: true
