@@ -38,6 +38,11 @@ func evidenceLabels(evidence []documents.Evidence) map[string]string {
 			}
 			name := path.Base(source)
 			if strings.HasPrefix(item.ID, "DIFF-") {
+				// The diff evidence source is the PR files URL; its detail starts with the file name.
+				first, _, _ := strings.Cut(item.Detail, "\n")
+				if first != "" {
+					name = path.Base(first)
+				}
 				name += " (diff)"
 			}
 			labels[item.ID] = item.Type + " " + name
