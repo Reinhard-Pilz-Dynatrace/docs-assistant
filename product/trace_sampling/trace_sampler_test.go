@@ -15,7 +15,7 @@ func TestCheckedInConfigDefaults(t *testing.T) {
 		t.Fatalf("ParseConfig() error = %v", err)
 	}
 	got := config.TraceSampling
-	if got.Enabled != true || got.SampleRatioPercent != 5 || got.PropagateBaggage != false {
+	if got.Enabled != true || got.SampleRatioPercent != 25 || got.PropagateBaggage != false {
 		t.Fatalf("checked-in defaults = %#v", got)
 	}
 }
