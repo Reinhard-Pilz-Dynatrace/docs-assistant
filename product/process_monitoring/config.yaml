@@ -1,0 +1,3 @@
+process_monitoring:
+  enabled: true
+  scan_interval_seconds: 30

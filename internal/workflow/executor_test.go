@@ -1,0 +1,153 @@
+package workflow
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Reinhard-Pilz-Dynatrace/docs-assistant/internal/documents"
+	gh "github.com/Reinhard-Pilz-Dynatrace/docs-assistant/internal/github"
+)
+
+func TestChangedConceptsSelectsSettingsButNotUnrelatedRefactor(t *testing.T) {
+	mapping := documents.Mapping{Features: map[string]documents.FeatureMapping{
+		"process_monitoring": {Schema: []string{"process_monitoring", "include_container_processes", "scan_interval_seconds"}},
+	}}
+	files := []gh.PullRequestFile{
+		{Filename: "product/process_monitoring/config.yaml", Patch: "@@ -1,2 +1,3 @@ process_monitoring:\n   enabled: true\n+  include_container_processes: true\n"},
+		{Filename: "product/process_monitoring/process_monitor.go", Patch: "@@ -2 +2 @@\n-func oldName() {}\n+func normalizedName() {}\n"},
+	}
+	got := changedConcepts(files, mapping)
+	if len(got) != 1 || got[0] != "include_container_processes" {
+		t.Fatalf("changedConcepts() = %#v, want only include_container_processes", got)
+	}
+}
+
+func TestDiffContextBoundsMappedPatchesAndOmitsUnrelatedPatches(t *testing.T) {
+	files := []gh.PullRequestFile{
+		{Filename: "product/process_monitoring/config.yaml", Status: "modified", Patch: strings.Repeat("+ include_container_processes\n", 300)},
+		{Filename: "docs/README.md", Status: "modified", Patch: "+ unrelated content\n"},
+	}
+	got := diffContext(files, []string{"include_container_processes"})
+	if len(got) != 2 || len(got[0].Patch) > 4020 || got[1].Patch != "" {
+		t.Fatalf("diffContext() = %#v", got)
+	}
+	noImpact := diffContext(files, nil)
+	if noImpact[0].Patch != "" || noImpact[1].Patch != "" {
+		t.Fatalf("no-impact context included patches: %#v", noImpact)
+	}
+}
+
+func TestImplementationPRNumberReadsIssueFormField(t *testing.T) {
+	body := "### User goal\n\nInclude container processes.\n\n### Merged implementation PR\n\n#42\n"
+	got, err := implementationPRNumber(body)
+	if err != nil {
+		t.Fatalf("implementationPRNumber() error = %v", err)
+	}
+	if got != 42 {
+		t.Fatalf("implementationPRNumber() = %d, want 42", got)
+	}
+}
+
+func TestReadContextForNoImpactRetainsEvidence(t *testing.T) {
+	executor := NewExecutor(nil, documents.Mapping{}, 7, t.TempDir(), "test-model")
+	executor.Issue = gh.Issue{Number: 7}
+	executor.Pull = gh.PullRequest{MergeCommitSHA: "merge-sha"}
+	executor.addEvidence(documents.Evidence{ID: "VI-7", Type: "VI", Source: "issue", Detail: "intent"})
+
+	bundle, err := executor.readDocumentationContext(context.Background())
+	if err != nil {
+		t.Fatalf("readDocumentationContext() error = %v", err)
+	}
+	if len(bundle.SelectedDocuments) != 0 || len(bundle.Evidence) != 1 || bundle.Evidence[0].ID != "VI-7" {
+		t.Fatalf("no-impact context = %#v", bundle)
+	}
+}
+
+func TestReadDocumentationContextLoadsOnlyMappedAudienceFiles(t *testing.T) {
+	files := map[string]string{
+		"product/process_monitoring/config.yaml":             "process_monitoring:\n  scan_interval_seconds: 30\n",
+		"product/process_monitoring/process_monitor.go":      "package processmonitoring\n",
+		"product/process_monitoring/process_monitor_test.go": "package processmonitoring\n",
+		"docs/customer/process-monitoring.md":                "# Customer page\n",
+		"docs/templates/customer.md":                         "## Overview\n",
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		path := strings.TrimPrefix(request.URL.Path, "/repos/acme/demo/contents/")
+		content, ok := files[path]
+		if !ok {
+			http.NotFound(writer, request)
+			return
+		}
+		encoded := base64.StdEncoding.EncodeToString([]byte(content))
+		writer.Header().Set("content-type", "application/json")
+		_, _ = fmt.Fprintf(writer, `{"path":%q,"sha":"sha-%s","encoding":"base64","content":%q}`, path, path, encoded)
+	}))
+	defer server.Close()
+
+	target := documents.DocumentTarget{Path: "docs/customer/process-monitoring.md", Audience: "customer", Type: "product-guide", Template: "docs/templates/customer.md"}
+	mapping := documents.Mapping{Features: map[string]documents.FeatureMapping{
+		"process_monitoring": {Schema: []string{"scan_interval_seconds"}, Docs: []documents.DocumentTarget{target}},
+	}}
+	client := &gh.Client{Owner: "acme", Repository: "demo", Token: "test", APIBase: server.URL, HTTPClient: server.Client()}
+	executor := NewExecutor(client, mapping, 7, t.TempDir(), "test-model")
+	executor.Issue = gh.Issue{Number: 7}
+	executor.Pull = gh.PullRequest{MergeCommitSHA: "merge-sha"}
+	executor.Changed = []string{"scan_interval_seconds"}
+	executor.addEvidence(documents.Evidence{ID: "VI-7", Type: "VI", Source: "issue", Detail: "intent"})
+
+	bundle, err := executor.readDocumentationContext(context.Background())
+	if err != nil {
+		t.Fatalf("readDocumentationContext() error = %v", err)
+	}
+	if len(bundle.SelectedDocuments) != 1 || bundle.SelectedDocuments[0].Audience != "customer" {
+		t.Fatalf("selected documents = %#v", bundle.SelectedDocuments)
+	}
+	if len(bundle.ExistingDocs) != 1 || len(bundle.Templates) != 1 || len(bundle.SourceFiles) != 3 {
+		t.Fatalf("context bundle counts = docs %d, templates %d, source %d", len(bundle.ExistingDocs), len(bundle.Templates), len(bundle.SourceFiles))
+	}
+	if len(bundle.Evidence) != 6 {
+		t.Fatalf("evidence count = %d, want 6", len(bundle.Evidence))
+	}
+}
+
+func TestRequireAllSelectedDocumentsRejectsUnselectedExtra(t *testing.T) {
+	target := documents.DocumentTarget{Path: "docs/customer.md"}
+	extra := documents.DocumentProposal{DocumentTarget: documents.DocumentTarget{Path: "docs/internal.md"}}
+	if err := requireAllSelectedDocuments([]documents.DocumentProposal{extra}, []documents.DocumentTarget{target}); err == nil {
+		t.Fatal("requireAllSelectedDocuments() accepted an unselected document")
+	}
+}
+
+func TestValidateSettingNamesRejectsUnmappedSetting(t *testing.T) {
+	mapping := documents.Mapping{Features: map[string]documents.FeatureMapping{
+		"process_monitoring": {Schema: []string{"scan_interval_seconds"}},
+	}}
+	err := validateSettingNames([]documents.SettingChange{{Name: "invented_setting", New: "true"}}, mapping)
+	if err == nil || !strings.Contains(err.Error(), "not in the docs mapping") {
+		t.Fatalf("validateSettingNames() error = %v, want unmapped setting error", err)
+	}
+}
+
+func TestSubmitResolutionRejectsNoImpactWhenDocsWereSelected(t *testing.T) {
+	target := documents.DocumentTarget{Path: "docs/customer.md", Audience: "customer", Type: "guide", Template: "docs/templates/customer.md"}
+	executor := NewExecutor(nil, documents.Mapping{Features: map[string]documents.FeatureMapping{"feature": {Schema: []string{"setting"}, Docs: []documents.DocumentTarget{target}}}}, 7, t.TempDir(), "test-model")
+	executor.ContextRead = true
+	executor.Targets = []documents.DocumentTarget{target}
+	evidence := documents.Evidence{ID: "VI-7", Type: "VI", Source: "issue", Detail: "intent"}
+	executor.addEvidence(evidence)
+	input, err := json.Marshal(map[string]any{"contract": documents.Contract{
+		Version: "1", Decision: documents.DecisionNoDocsImpact, Evidence: []documents.Evidence{evidence},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := executor.submitResolution(context.Background(), input); err == nil || !strings.Contains(err.Error(), "mapping selected targets") {
+		t.Fatalf("submitResolution() error = %v, want false no-impact rejection", err)
+	}
+}

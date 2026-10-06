@@ -1,0 +1,14 @@
+process_monitoring:
+  schema:
+    - process_monitoring
+    - include_container_processes
+    - scan_interval_seconds
+  docs:
+    - path: docs/customer/process-monitoring.md
+      audience: customer
+      type: product-guide
+      template: docs/templates/customer-product-guide.md
+    - path: docs/internal/process-monitoring.md
+      audience: internal-developer
+      type: developer-guide
+      template: docs/templates/internal-developer-guide.md

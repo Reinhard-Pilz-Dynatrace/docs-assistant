@@ -1,0 +1,59 @@
+name: Resolve VI documentation
+
+on:
+  issues:
+    types: [labeled, closed]
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: VI issue number for a live agent run
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: vi-docs-${{ github.event.issue.number || inputs.issue || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-documentation:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.action == 'closed' ||
+      (github.event.action == 'labeled' && github.event.label.name == 'vi:ready-for-docs') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run VI documentation agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            go run ./cmd/docs-assistant --issue "${{ inputs.issue }}"
+          else
+            go run ./cmd/docs-assistant
+          fi
+      - name: Upload Doc Contract and tool trace
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vi-documentation-resolution-${{ github.run_id }}
+          path: artifacts/*.json
+          if-no-files-found: ignore

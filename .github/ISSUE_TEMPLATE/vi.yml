@@ -1,0 +1,72 @@
+name: Value Increment
+description: Record the customer and business context for a product change.
+title: "VI: "
+labels:
+  - vi:in-progress
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the intended product outcome. Product behavior and defaults are verified against checked-in source during documentation resolution.
+  - type: textarea
+    id: user_problem
+    attributes:
+      label: User problem
+      description: What problem are users experiencing?
+    validations:
+      required: true
+  - type: input
+    id: audience
+    attributes:
+      label: Target audience
+      placeholder: Platform engineers
+    validations:
+      required: true
+  - type: textarea
+    id: user_goal
+    attributes:
+      label: User goal
+      description: What should users be able to do?
+    validations:
+      required: true
+  - type: textarea
+    id: business_value
+    attributes:
+      label: Business value
+    validations:
+      required: false
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Name settings, behavior, and product areas included.
+    validations:
+      required: true
+  - type: textarea
+    id: expected_outcome
+    attributes:
+      label: Expected customer outcome
+    validations:
+      required: true
+  - type: textarea
+    id: limitations
+    attributes:
+      label: Limitations
+      description: State known platform, availability, or scope limitations.
+    validations:
+      required: false
+  - type: textarea
+    id: documentation_hints
+    attributes:
+      label: Documentation hints
+      description: Which docs or audience-specific details should the agent consider?
+    validations:
+      required: false
+  - type: input
+    id: implementation_pr
+    attributes:
+      label: Merged implementation PR (fill in before ready for docs)
+      description: After merging the implementation PR, add its number, for example #12. Then add the vi:ready-for-docs label.
+      placeholder: "#123"
+    validations:
+      required: false
