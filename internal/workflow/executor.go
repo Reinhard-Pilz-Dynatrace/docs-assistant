@@ -324,7 +324,7 @@ func (executor *Executor) submitResolution(ctx context.Context, input json.RawMe
 		for _, proposal := range contract.AffectedDocuments {
 			files[proposal.Path] = proposal.Markdown
 		}
-		pull, err := executor.GitHub.CreateDocumentationPR(ctx, executor.Issue.Number, fmt.Sprintf("docs: update process monitoring for VI #%d", executor.Issue.Number), docsPRBody(contract, executor.Pull), files)
+		pull, err := executor.GitHub.CreateDocumentationPR(ctx, executor.Issue.Number, fmt.Sprintf("docs: update %s for VI #%d", featureTitle(contract.Change.Feature), executor.Issue.Number), docsPRBody(contract, executor.Pull, executor.measurement, executor.Gateway), files)
 		if err != nil {
 			return nil, publishError(err)
 		}
@@ -611,82 +611,12 @@ func (executor *Executor) appendSummary(title string, contract documents.Contrac
 	if path == "" {
 		return
 	}
-	var content strings.Builder
-	fmt.Fprintf(&content, "## Documentation resolution: %s\n\n", title)
-	fmt.Fprintf(&content, "- VI: [#%d](%s)\n", executor.Issue.Number, executor.Issue.HTMLURL)
-	fmt.Fprintf(&content, "- Implementation PR: [#%d](%s)\n", executor.Pull.Number, executor.Pull.HTMLURL)
-	fmt.Fprintf(&content, "- Provider: Anthropic Claude (`%s`)\n", executor.Model)
-	if executor.Gateway != "" {
-		fmt.Fprintf(&content, "- Gateway: `%s`\n", executor.Gateway)
-	}
-	fmt.Fprintf(&content, "- Decision: `%s`\n", contract.Decision)
-	fmt.Fprintf(&content, "- Context: %d selected files, approximately %d characters from %d tracked files (%.1f%% reduction)\n", executor.measurement.SelectedFiles, executor.measurement.SelectedChars, executor.measurement.RepositoryFiles, executor.measurement.ReductionPct)
-	if docsPR != "" {
-		fmt.Fprintf(&content, "- Docs PR: %s\n", docsPR)
-	}
-	content.WriteString("\n### Affected documentation\n\n")
-	if len(contract.AffectedDocuments) == 0 {
-		content.WriteString("No docs proposals.\n")
-	}
-	for _, proposal := range contract.AffectedDocuments {
-		fmt.Fprintf(&content, "- `%s` (%s / %s): %s\n", proposal.Path, proposal.Audience, proposal.Type, proposal.Reason)
-	}
-	if len(contract.Conflicts) > 0 {
-		content.WriteString("\n### Conflicts\n\n")
-		for _, conflict := range contract.Conflicts {
-			fmt.Fprintf(&content, "- %s (blocking: %t)\n", conflict.Description, conflict.BlocksResolution)
-		}
-	}
-	if len(contract.MissingInformation) > 0 {
-		content.WriteString("\n### Missing information\n\n")
-		for _, item := range contract.MissingInformation {
-			fmt.Fprintf(&content, "- %s\n", item)
-		}
-	}
-	content.WriteString("\nHuman review is required; documentation is never auto-merged.\n")
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return
 	}
 	defer file.Close()
-	_, _ = file.WriteString(content.String())
-}
-
-func resolutionComment(contract documents.Contract) string {
-	var comment strings.Builder
-	comment.WriteString("## Documentation resolution needs clarification\n\n")
-	for _, conflict := range contract.Conflicts {
-		fmt.Fprintf(&comment, "- **Conflict:** %s\n", conflict.Description)
-	}
-	for _, missing := range contract.MissingInformation {
-		fmt.Fprintf(&comment, "- **Missing information:** %s\n", missing)
-	}
-	comment.WriteString("\nThe VI remains open for human resolution. Evidence is available in the workflow artifact.")
-	return comment.String()
-}
-
-func docsPRBody(contract documents.Contract, implementation gh.PullRequest) string {
-	var body strings.Builder
-	fmt.Fprintf(&body, "## Trigger\n\nThis proposal resolves VI #%d using merged implementation PR #%d.\n\n", contract.WorkItem.Number, implementation.Number)
-	body.WriteString("## Affected documents\n\n")
-	for _, document := range contract.AffectedDocuments {
-		fmt.Fprintf(&body, "- `%s` (%s / %s): %s\n", document.Path, document.Audience, document.Type, document.Reason)
-	}
-	body.WriteString("\n## Evidence and unresolved items\n\n")
-	for _, claim := range contract.Claims {
-		fmt.Fprintf(&body, "- [%s] %s (evidence: %s)\n", claim.Audience, claim.Text, strings.Join(claim.EvidenceIDs, ", "))
-	}
-	if len(contract.Conflicts) == 0 && len(contract.MissingInformation) == 0 {
-		body.WriteString("No unresolved conflicts or missing information were identified.\n")
-	}
-	for _, conflict := range contract.Conflicts {
-		fmt.Fprintf(&body, "- **Conflict:** %s (evidence: %s)\n", conflict.Description, strings.Join(conflict.EvidenceIDs, ", "))
-	}
-	for _, missing := range contract.MissingInformation {
-		fmt.Fprintf(&body, "- **Missing:** %s\n", missing)
-	}
-	body.WriteString("\nHuman review is required. This PR is not auto-merged.\n")
-	return body.String()
+	_, _ = file.WriteString(renderSummary(title, contract, executor.Issue, executor.Pull, executor.measurement, executor.Gateway, docsPR))
 }
 
 func requireAllSelectedDocuments(proposals []documents.DocumentProposal, targets []documents.DocumentTarget) error {
