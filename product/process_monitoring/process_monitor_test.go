@@ -1,6 +1,9 @@
 package processmonitoring
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestParseConfigReadsCheckedInDefault(t *testing.T) {
 	config, err := ParseConfig([]byte("process_monitoring:\n  enabled: true\n  scan_interval_seconds: 30\n"))
@@ -19,6 +22,20 @@ func TestParseConfigRejectsInvalidScanInterval(t *testing.T) {
 	_, err := ParseConfig([]byte("process_monitoring:\n  enabled: true\n  scan_interval_seconds: 0\n"))
 	if err == nil {
 		t.Fatal("ParseConfig() accepted a zero scan interval")
+	}
+}
+
+func TestCheckedInConfigUsesSixtySecondInterval(t *testing.T) {
+	data, err := os.ReadFile("config.yaml")
+	if err != nil {
+		t.Fatalf("read checked-in config: %v", err)
+	}
+	config, err := ParseConfig(data)
+	if err != nil {
+		t.Fatalf("ParseConfig() error = %v", err)
+	}
+	if got := config.ProcessMonitoring.ScanIntervalSeconds; got != 60 {
+		t.Fatalf("checked-in scan interval = %d, want 60", got)
 	}
 }
 
