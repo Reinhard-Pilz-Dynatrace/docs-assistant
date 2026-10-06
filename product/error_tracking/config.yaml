@@ -1,4 +1,4 @@
 error_tracking:
   enabled: true
-  max_stack_frames: 50
+  max_stack_frames: 25
   group_similar_errors: false

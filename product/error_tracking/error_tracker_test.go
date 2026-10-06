@@ -15,7 +15,7 @@ func TestCheckedInConfigDefaults(t *testing.T) {
 		t.Fatalf("ParseConfig() error = %v", err)
 	}
 	got := config.ErrorTracking
-	if got.Enabled != true || got.MaxStackFrames != 50 || got.GroupSimilarErrors != false {
+	if got.Enabled != true || got.MaxStackFrames != 25 || got.GroupSimilarErrors != false {
 		t.Fatalf("checked-in defaults = %#v", got)
 	}
 }
