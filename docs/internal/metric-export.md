@@ -12,11 +12,11 @@ The metric export behavior is owned by the `product/metric_export` package.
 - `product/metric_export/config.yaml`
 - `product/metric_export/metric_exporter_test.go`
 
-The checked-in defaults are `enabled: true`, `export_interval_seconds: 15`, and `include_histograms: true`.
+The checked-in defaults are `enabled: true`, `export_interval_seconds: 30`, and `include_histograms: true`. The interval was previously 15 (changed in PR #27).
 
 ## Tests and verification
 
-Run `go test ./product/metric_export` to verify configuration and behavior. `TestCheckedInConfigDefaults` reads the checked-in `config.yaml` and asserts the defaults.
+Run `go test ./product/metric_export` to verify configuration and behavior. `TestCheckedInConfigDefaults` reads the checked-in `config.yaml` and asserts the defaults, including an interval of 30. Other tests such as `TestShouldExport` use an explicit 15-second interval as test input; this is not the checked-in default.
 
 ## Operational notes
 
